@@ -1,10 +1,5 @@
 <template>
-  <div>
+  <NuxtLayout>
     <NuxtPage />
-    {{ data.message}}
-  </div>
+  </NuxtLayout>
 </template>
-
-<script setup>
-const data = await $fetch('/api/hello')
-</script>
