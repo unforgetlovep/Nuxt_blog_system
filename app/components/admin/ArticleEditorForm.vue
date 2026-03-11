@@ -19,8 +19,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const router = useRouter()
 
-const categoryOptions = ['前端开发', '产品规划', '设计研究', '运营分析']
-const tagOptions = ['Nuxt', 'Vue', 'TypeScript', 'TailwindCSS', '毕业设计', '内容运营']
+const categoryOptions = ['效率工具', '生活方式', '数码评测', '经验分享', '商业观点']
+const tagOptions = ['苹果', '效率', '硬件', 'NAS', '软件', '咖啡', '知识管理']
 const statusOptions: ArticleStatus[] = ['草稿', '待审核', '已发布']
 const defaultCover = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'
 
@@ -29,15 +29,7 @@ const createInitialArticle = (): BlogArticle => ({
   slug: 'new-article',
   title: '用内容系统整理前端实践与产品笔记',
   summary: '围绕内容策划、写作、发布与展示建立一套清晰的工作流，让文章管理与前台阅读体验保持一致。',
-  content: `## 内容定位
-
-- 记录前端开发中的关键实践
-- 沉淀产品思考、设计观察与项目复盘
-- 让文章从草稿到发布形成稳定流程
-
-## 写作建议
-
-先写清问题背景，再整理方法与结论，最后补充可复用的经验与参考资料。`,
+  content: `## 内容定位\n\n- 记录前端开发中的关键实践\n- 沉淀产品思考、设计观察与项目复盘\n- 让文章从草稿到发布形成稳定流程\n\n## 写作建议\n\n先写清问题背景，再整理方法与结论，最后补充可复用的经验与参考资料。`,
   status: '草稿',
   updatedAt: '2026-03-08T10:00',
   createdAt: '2026-03-08',
@@ -203,8 +195,8 @@ const saveArticle = async () => {
   lastSavedAt.value = now
   lastSavedSnapshot.value = serializeArticle(savedArticle)
   submitMessage.value = props.mode === 'create'
-    ? '文章已保存，现在可以在列表页和前台详情页中直接查看。'
-    : '文章更新成功，后台列表与前台展示内容已同步刷新。'
+    ? '文章已保存。'
+    : '文章更新成功。'
 
   if (props.mode === 'create') {
     await navigateTo(`/admin/articles/${savedArticle.slug}`)
@@ -271,128 +263,130 @@ watch(
 </script>
 
 <template>
-  <div class="space-y-8 m-20">
-    <section class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+  <div class="space-y-6">
+    <!-- Header Area -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-5 rounded border border-gray-200 shadow-sm">
       <div>
-        <p class="text-sm uppercase tracking-[0.3em] text-sky-700">Editor</p>
-        <h2 class="mt-2 text-3xl font-semibold text-slate-950">
+        <h2 class="text-xl font-semibold text-gray-900">
           {{ mode === 'create' ? '新建文章' : '编辑文章' }}
         </h2>
-        <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
+        <p class="mt-1 text-sm text-gray-500">
           {{ mode === 'create'
-            ? '使用 Markdown 编辑器快速完成标题、摘要、正文与发布信息的整理。'
-            : '继续完善当前文章内容，保存后会同步更新前台详情页与后台列表。'
+            ? '请填写文章基础信息并编写正文内容。'
+            : '编辑文章内容，保存后将同步更新。'
           }}
         </p>
-        <p v-if="submitMessage" class="mt-3 text-sm text-emerald-600">
+        <p v-if="submitMessage" class="mt-2 text-sm font-medium text-green-600">
           {{ submitMessage }}
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-3">
+      <div class="mt-4 sm:mt-0 flex flex-wrap gap-2">
         <button
           type="button"
-          class="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+          class="rounded px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition"
           @click="saveDraft"
         >
           保存草稿
         </button>
         <button
           type="button"
-          class="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          class="rounded px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition"
           @click="availableDraft ? restoreDraft() : resetForm()"
         >
           {{ availableDraft ? '恢复草稿' : mode === 'create' ? '重置表单' : '恢复原文' }}
         </button>
         <button
           type="button"
-          class="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          class="rounded px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition shadow-sm"
           @click="saveArticle"
         >
           {{ mode === 'create' ? '创建文章' : '更新文章' }}
         </button>
       </div>
-    </section>
+    </div>
 
-    <section class="rounded-[1.75rem] border border-slate-200 bg-white px-5 py-4 shadow-sm">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div class="text-sm text-slate-700">
-          <p class="font-medium">
-            {{ hasUnsavedChanges ? '当前有未保存的修改' : '当前内容已与最近一次保存状态同步' }}
-          </p>
-          <p class="mt-1 text-slate-500">
-            {{ formattedSavedAt
-              ? `最近一次保存时间：${formattedSavedAt}`
-              : '草稿会保存到浏览器本地，不会写入服务器。'
-            }}
-          </p>
+    <!-- Status Bar -->
+    <div class="bg-blue-50 text-blue-800 p-3 rounded border border-blue-100 text-sm flex flex-col sm:flex-row sm:justify-between sm:items-center">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>
+          {{ hasUnsavedChanges ? '当前有未保存的修改' : '内容已与最近一次保存同步' }}
+          <span v-if="formattedSavedAt" class="ml-2 text-blue-600">({{ formattedSavedAt }})</span>
+        </span>
+      </div>
+      <div class="mt-2 sm:mt-0 flex gap-4 text-blue-700 font-medium">
+        <span>预计阅读: {{ estimatedReadTime }}</span>
+        <span>标签数: {{ form.tags.length }}</span>
+      </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <!-- Main Content Editor -->
+      <div class="bg-white rounded border border-gray-200 shadow-sm p-6 space-y-5">
+        <h3 class="text-base font-semibold text-gray-900 border-b border-gray-100 pb-3">基本内容</h3>
+        
+        <div class="grid gap-5 sm:grid-cols-[1fr_200px]">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">文章标题 <span class="text-red-500">*</span></label>
+            <input
+              v-model="form.title"
+              type="text"
+              placeholder="请输入文章标题"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">标识 (Slug)</label>
+            <input
+              v-model="form.slug"
+              type="text"
+              class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              @input="isSlugCustomized = true"
+            >
+          </div>
         </div>
 
-        <div class="flex flex-wrap gap-3 text-sm text-slate-600">
-          <span class="rounded-full bg-stone-50 px-3 py-2">预计阅读：{{ estimatedReadTime }}</span>
-          <span class="rounded-full bg-stone-50 px-3 py-2">标签数：{{ form.tags.length }}</span>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">文章摘要 <span class="text-red-500">*</span></label>
+          <textarea
+            v-model="form.summary"
+            rows="3"
+            placeholder="简要描述文章内容"
+            class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">正文内容 <span class="text-red-500">*</span></label>
+          <div class="border border-gray-300 rounded overflow-hidden">
+            <ClientOnly fallback-tag="div" fallback="Markdown 编辑器加载中...">
+              <MdEditor
+                v-model="form.content"
+                class="min-h-[500px]"
+                preview-theme="github"
+                code-theme="atom"
+              />
+            </ClientOnly>
+          </div>
         </div>
       </div>
-    </section>
 
-    <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <article class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="space-y-6">
-          <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div>
-              <label class="text-sm font-medium text-slate-700">文章标题</label>
-              <input
-                v-model="form.title"
-                type="text"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base text-slate-950 outline-none transition focus:border-cyan-400"
-              >
-            </div>
-
-            <div>
-              <label class="text-sm font-medium text-slate-700">文章标识</label>
-              <input
-                v-model="form.slug"
-                type="text"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-950 outline-none transition focus:border-cyan-400"
-                @input="isSlugCustomized = true"
-              >
-            </div>
+      <!-- Sidebar Settings -->
+      <div class="space-y-6">
+        <!-- Publish Settings -->
+        <div class="bg-white rounded border border-gray-200 shadow-sm">
+          <div class="p-4 border-b border-gray-100">
+             <h3 class="text-base font-semibold text-gray-900">发布设置</h3>
           </div>
-
-          <div>
-            <label class="text-sm font-medium text-slate-700">文章摘要</label>
-            <textarea
-              v-model="form.summary"
-              rows="4"
-              class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition focus:border-cyan-400"
-            />
-          </div>
-
-          <div>
-            <label class="text-sm font-medium text-slate-700">正文内容</label>
-            <div class="mt-3 overflow-hidden rounded-[1.5rem] border border-slate-200">
-              <ClientOnly fallback-tag="div" fallback="Markdown 编辑器加载中...">
-                <MdEditor
-                  v-model="form.content"
-                  class="min-h-[640px]"
-                  preview-theme="github"
-                  code-theme="atom"
-                />
-              </ClientOnly>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <aside class="space-y-6">
-        <article class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p class="text-base font-semibold text-slate-950">发布设置</p>
-          <div class="mt-5 space-y-5">
+          <div class="p-4 space-y-4">
             <div>
-              <label class="text-sm font-medium text-slate-700">文章状态</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">文章状态</label>
               <select
                 v-model="form.status"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 <option v-for="status in statusOptions" :key="status" :value="status">
                   {{ status }}
@@ -401,105 +395,110 @@ watch(
             </div>
 
             <div>
-              <label class="text-sm font-medium text-slate-700">最近更新时间</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">最近更新时间</label>
               <input
                 v-model="form.updatedAt"
                 type="datetime-local"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400"
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
             </div>
 
             <div>
-              <label class="text-sm font-medium text-slate-700">封面图地址</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">封面图地址</label>
               <input
                 v-model="form.cover"
                 type="url"
-                placeholder="https://example.com/cover.jpg"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400"
+                placeholder="https://..."
+                class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
-              <div class="mt-3 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
+              <div class="mt-2 rounded border border-gray-200 overflow-hidden bg-gray-50 aspect-video">
                 <img
+                  v-if="form.cover || defaultCover"
                   :src="form.cover || defaultCover"
                   :alt="form.title"
-                  class="h-40 w-full object-cover"
+                  class="h-full w-full object-cover"
                 >
               </div>
             </div>
 
-            <label class="flex items-center justify-between gap-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <div class="flex items-center justify-between mt-2">
               <div>
-                <p class="text-sm font-medium text-slate-700">设为精选文章</p>
-                <p class="mt-1 text-xs text-slate-500">首页推荐区会优先展示精选内容</p>
+                <label class="text-sm font-medium text-gray-700">设为精选文章</label>
+                <p class="text-xs text-gray-500">首页优先展示</p>
               </div>
-              <input v-model="form.featured" type="checkbox" class="h-5 w-5 accent-slate-900">
-            </label>
-          </div>
-        </article>
-
-        <article class="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p class="text-base font-semibold text-slate-950">分类与标签</p>
-
-          <div class="mt-5">
-            <label class="text-sm font-medium text-slate-700">分类</label>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                v-for="category in categoryOptions"
-                :key="category"
-                type="button"
-                :class="[
-                  'rounded-full px-3 py-2 text-sm transition',
-                  category === form.category
-                    ? 'bg-slate-950 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                ]"
-                @click="form.category = category"
-              >
-                {{ category }}
-              </button>
+              <input v-model="form.featured" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
             </div>
           </div>
+        </div>
 
-          <div class="mt-6">
-            <label class="text-sm font-medium text-slate-700">标签</label>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                v-for="tag in tagOptions"
-                :key="tag"
-                type="button"
-                :class="[
-                  'rounded-full px-3 py-2 text-sm transition',
-                  form.tags.includes(tag)
-                    ? 'bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/15'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
-                ]"
-                @click="toggleTag(tag)"
-              >
-                {{ tag }}
-              </button>
-            </div>
+        <!-- Meta Info -->
+        <div class="bg-white rounded border border-gray-200 shadow-sm">
+          <div class="p-4 border-b border-gray-100">
+             <h3 class="text-base font-semibold text-gray-900">分类与标签</h3>
           </div>
-
-          <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <div class="p-4 space-y-5">
             <div>
-              <label class="text-sm font-medium text-slate-700">作者</label>
-              <input
-                v-model="form.author"
-                type="text"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400"
-              >
+              <label class="block text-sm font-medium text-gray-700 mb-2">分类</label>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="category in categoryOptions"
+                  :key="category"
+                  type="button"
+                  :class="[
+                    'rounded px-2.5 py-1 text-xs font-medium transition border',
+                    category === form.category
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50',
+                  ]"
+                  @click="form.category = category"
+                >
+                  {{ category }}
+                </button>
+              </div>
             </div>
 
             <div>
-              <label class="text-sm font-medium text-slate-700">创建时间</label>
-              <input
-                v-model="form.createdAt"
-                type="date"
-                class="mt-3 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400"
-              >
+              <label class="block text-sm font-medium text-gray-700 mb-2">标签</label>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="tag in tagOptions"
+                  :key="tag"
+                  type="button"
+                  :class="[
+                    'rounded px-2.5 py-1 text-xs font-medium transition border',
+                    form.tags.includes(tag)
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50',
+                  ]"
+                  @click="toggleTag(tag)"
+                >
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
+
+            <div class="grid gap-3 pt-2 border-t border-gray-100">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">作者</label>
+                <input
+                  v-model="form.author"
+                  type="text"
+                  class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">创建时间</label>
+                <input
+                  v-model="form.createdAt"
+                  type="date"
+                  class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+              </div>
             </div>
           </div>
-        </article>
-      </aside>
-    </section>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

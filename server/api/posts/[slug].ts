@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!slug) {
     throw createError({
       statusCode: 400,
+      
       statusMessage: '文章标识不能为空',
     })
   }

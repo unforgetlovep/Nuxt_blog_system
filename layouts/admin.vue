@@ -7,16 +7,19 @@ const navigationItems = [
     label: '仪表盘',
     description: '总览数据',
     to: '/admin',
+    icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'
   },
   {
     label: '文章管理',
     description: '列表与筛选',
     to: '/admin/articles',
+    icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
   },
   {
     label: '新建文章',
     description: '内容编辑',
     to: '/admin/articles/create',
+    icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
   },
 ]
 
@@ -24,7 +27,6 @@ const isActiveLink = (to: string) => {
   if (to === '/admin') {
     return route.path === to
   }
-
   return route.path.startsWith(to)
 }
 
@@ -33,81 +35,91 @@ const getActiveNavigationItem = () =>
 </script>
 
 <template>
-  <div class="min-h-screen bg-stone-100 text-slate-900">
-    <div class="mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside class="border-b border-slate-800 bg-slate-950 px-6 py-8 text-slate-200 lg:border-b-0 lg:border-r lg:px-7">
-        <NuxtLink to="/" class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-sm font-semibold text-slate-950">
-            栈文
+  <div class="min-h-screen bg-gray-100 text-gray-900 font-sans flex">
+    <!-- Sidebar -->
+    <aside class="w-64 flex-shrink-0 border-r border-gray-200 bg-white hidden lg:flex flex-col z-10">
+      <div class="h-16 flex items-center px-6 border-b border-gray-200">
+        <NuxtLink to="/" class="flex items-center gap-2">
+          <div class="flex h-7 w-7 items-center justify-center rounded bg-blue-600 text-xs font-bold text-white">
+            CMS
           </div>
-          <div>
-            <p class="text-sm text-slate-400">Content Studio</p>
-            <p class="text-base font-semibold text-white">内容后台</p>
-          </div>
+          <span class="text-base font-bold text-gray-800">栈文管理系统</span>
         </NuxtLink>
+      </div>
 
-        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
-          <p class="text-xs uppercase tracking-[0.3em] text-slate-500">Workspace</p>
-          <p class="mt-3 text-lg font-semibold text-white">内容管理中心</p>
-          <p class="mt-2 text-sm leading-6 text-slate-400">
-            统一管理文章、分类信息与内容状态，让前台展示与后台维护保持同步。
-          </p>
-          <NuxtLink
-            to="/"
-            class="mt-5 inline-flex rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/5 hover:text-white"
-          >
-            查看前台站点
-          </NuxtLink>
+      <div class="flex-1 overflow-y-auto py-4 px-3">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">
+          导航模块
         </div>
-
-        <nav class="mt-8 space-y-3">
+        <nav class="space-y-1">
           <NuxtLink
             v-for="item in navigationItems"
             :key="item.to"
             :to="item.to"
             :class="[
-              'block rounded-2xl border px-4 py-3 transition',
+              'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
               isActiveLink(item.to)
-                ? 'border-cyan-400/40 bg-cyan-500/15 text-white'
-                : 'border-transparent bg-white/5 text-slate-300 hover:border-white/10 hover:bg-white/10 hover:text-white',
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
             ]"
           >
-            <p class="font-medium">{{ item.label }}</p>
-            <p class="mt-1 text-sm text-slate-400">{{ item.description }}</p>
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
+            </svg>
+            {{ item.label }}
           </NuxtLink>
         </nav>
-
-        <div class="mt-8 rounded-[1.75rem] border border-white/10 bg-slate-900 p-5">
-          <p class="text-sm font-medium text-white">当前模块</p>
-          <p class="mt-2 text-lg font-semibold text-cyan-300">{{ getActiveNavigationItem().label }}</p>
-          <p class="mt-2 text-sm leading-6 text-slate-400">{{ getActiveNavigationItem().description }}</p>
-        </div>
-      </aside>
-
-      <div class="min-w-0">
-        <header class="border-b border-slate-200 bg-stone-100/85 px-6 py-5 backdrop-blur md:px-8">
-          <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p class="text-sm text-slate-500">Blog Management System</p>
-              <h1 class="text-2xl font-semibold text-slate-950">{{ getActiveNavigationItem().label }}</h1>
-              <p class="mt-1 text-sm text-slate-500">{{ getActiveNavigationItem().description }}</p>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <div class="hidden rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 sm:block">
-                数据来源：SQLite + Server API
-              </div>
-              <div class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white shadow-sm">
-                CMS
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main class="p-5 md:p-8">
-          <slot />
-        </main>
       </div>
+      
+      <div class="p-4 border-t border-gray-200">
+        <NuxtLink
+          to="/"
+          class="flex items-center justify-center gap-2 rounded text-sm font-medium text-gray-600 border border-gray-300 bg-white px-4 py-2 transition hover:bg-gray-50"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          返回前台站点
+        </NuxtLink>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Header -->
+      <header class="h-16 flex items-center justify-between border-b border-gray-200 bg-white px-6 shadow-sm z-10">
+        <div class="flex items-center gap-4">
+          <!-- Mobile Menu Button (Optional, not implemented but space reserved) -->
+          <button class="lg:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-md">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          
+          <div>
+            <h1 class="text-lg font-semibold text-gray-800">{{ getActiveNavigationItem().label }}</h1>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div class="hidden sm:flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+             <span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+             SQLite + Server API
+          </div>
+          <div class="h-8 w-8 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center overflow-hidden">
+            <svg class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Slot Area -->
+      <main class="flex-1 overflow-auto p-6 lg:p-8">
+        <div class="mx-auto max-w-7xl">
+          <slot />
+        </div>
+      </main>
     </div>
   </div>
 </template>
