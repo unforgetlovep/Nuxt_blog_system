@@ -8,6 +8,7 @@ export interface BlogArticle {
   category: string
   status: ArticleStatus
   author: string
+  authorId?: number
   updatedAt: string
   createdAt: string
   readTime: string

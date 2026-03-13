@@ -8,11 +8,15 @@ definePageMeta({
 const activeCategory = ref('全部')
 const searchKeyword = ref('')
 const sortValue = ref('updatedAt')
+const page = ref(1)
+const pageSize = ref(10)
 
 const query = computed(() => ({
-  category: activeCategory.value,
+  category: activeCategory.value === '全部' ? undefined : activeCategory.value,
   search: searchKeyword.value,
   sort: sortValue.value,
+  page: page.value,
+  pageSize: pageSize.value,
 }))
 
 interface ArticlesResponse {
@@ -24,14 +28,25 @@ interface ArticlesResponse {
   }
   categories: string[]
   list: BlogArticle[]
+  pagination?: {
+    total: number
+    page: number
+    pageSize: number
+    totalPages: number
+  }
 }
 
 const { data, pending } = await useFetch<ArticlesResponse>('/api/posts', {
   query,
 })
 
+watch([activeCategory, searchKeyword, sortValue], () => {
+  page.value = 1
+})
+
 const filterTabs = computed(() => data.value?.categories ?? ['全部'])
 const articleList = computed(() => data.value?.list ?? [])
+const pagination = computed(() => data.value?.pagination)
 
 const getStatusClass = (status: string) => {
   switch (status) {
@@ -175,11 +190,22 @@ const getStatusClass = (status: string) => {
       </div>
       <!-- Pagination Placeholder -->
       <div class="p-4 border-t border-gray-200 bg-white flex justify-between items-center text-sm text-gray-500">
-        <span>共 {{ articleList.length }} 条记录</span>
-        <!-- Note: Pagination not implemented in current logic, visual placeholder only -->
+        <span>共 {{ pagination?.total ?? articleList.length }} 条记录</span>
         <div class="flex gap-1">
-          <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>上一页</button>
-          <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>下一页</button>
+          <button 
+            @click="page > 1 && page--" 
+            :disabled="page <= 1"
+            class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            上一页
+          </button>
+          <button 
+            @click="pagination && page < pagination.totalPages && page++" 
+            :disabled="!pagination || page >= pagination.totalPages"
+            class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            下一页
+          </button>
         </div>
       </div>
     </div>

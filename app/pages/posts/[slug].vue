@@ -17,6 +17,14 @@ const markdown = new MarkdownIt({
 })
 
 const renderedContent = computed(() => markdown.render(article.value?.content ?? ''))
+
+useSeoMeta({
+  title: () => article.value?.title ? `${article.value.title} - Blog System` : '文章详情',
+  description: () => article.value?.summary || '文章详情',
+  ogTitle: () => article.value?.title,
+  ogDescription: () => article.value?.summary,
+  ogImage: () => article.value?.cover,
+})
 </script>
 
 <template>

@@ -4,7 +4,7 @@ import { createClient } from '@libsql/client'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { mockArticles } from '~~/shared/data/articles'
-import { articles } from './schema'
+import { articles, users } from './schema'
 
 const databaseFilePath = join(process.cwd(), '.data', 'blog.sqlite')
 const databaseUrl = `file:${databaseFilePath.replace(/\\/g, '/')}`
@@ -18,6 +18,7 @@ const client = createClient({
 export const db = drizzle(client, {
   schema: {
     articles,
+    users,
   },
 })
 
@@ -29,6 +30,17 @@ export const initializeDatabase = async () => {
   }
 
   await client.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      avatar TEXT,
+      created_at TEXT NOT NULL
+    )
+  `)
+
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS articles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL UNIQUE,
@@ -37,6 +49,7 @@ export const initializeDatabase = async () => {
       category TEXT NOT NULL,
       status TEXT NOT NULL,
       author TEXT NOT NULL,
+      author_id INTEGER REFERENCES users(id),
       updated_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       read_time TEXT NOT NULL,
@@ -47,6 +60,17 @@ export const initializeDatabase = async () => {
       content TEXT NOT NULL
     )
   `)
+
+  // Add author_id column to existing articles table if it doesn't exist
+  try {
+    const tableInfo = await client.execute("PRAGMA table_info(articles)")
+    const hasAuthorId = tableInfo.rows.some(row => row.name === 'author_id')
+    if (!hasAuthorId) {
+      await client.execute("ALTER TABLE articles ADD COLUMN author_id INTEGER REFERENCES users(id)")
+    }
+  } catch (e) {
+    console.error("Error modifying articles table", e)
+  }
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(articles)
 

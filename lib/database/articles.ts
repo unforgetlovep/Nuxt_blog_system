@@ -31,6 +31,7 @@ const toBlogArticle = (row: ArticleRow): BlogArticle => ({
   category: row.category,
   status: row.status as BlogArticle['status'],
   author: row.author,
+  authorId: row.authorId ?? undefined,
   updatedAt: row.updatedAt,
   createdAt: row.createdAt,
   readTime: row.readTime,
@@ -48,6 +49,7 @@ const toDatabaseArticle = (article: Omit<BlogArticle, 'id'>): NewArticleRow => (
   category: article.category,
   status: article.status,
   author: article.author,
+  authorId: article.authorId,
   updatedAt: article.updatedAt,
   createdAt: article.createdAt,
   readTime: article.readTime,
@@ -80,7 +82,7 @@ const createUniqueSlug = async (slug: string, currentSlug?: string) => {
   }
 }
 
-export const getArticles = async (query: ArticleQuery = {}) => {
+export const getArticles = async (query: ArticleQuery & { page?: number; pageSize?: number } = {}) => {
   await initializeDatabase()
 
   const {
@@ -88,6 +90,8 @@ export const getArticles = async (query: ArticleQuery = {}) => {
     status = '全部',
     search = '',
     sort = 'updatedAt',
+    page,
+    pageSize,
   } = query
 
   let list = (await db.select().from(articles)).map(toBlogArticle)
@@ -128,6 +132,13 @@ export const getArticles = async (query: ArticleQuery = {}) => {
 
   const allArticles = (await db.select().from(articles)).map(toBlogArticle)
 
+  const total = list.length
+
+  if (page && pageSize) {
+    const startIndex = (page - 1) * pageSize
+    list = list.slice(startIndex, startIndex + pageSize)
+  }
+
   return {
     stats: {
       total: allArticles.length,
@@ -137,6 +148,12 @@ export const getArticles = async (query: ArticleQuery = {}) => {
     },
     categories: ['全部', ...new Set(allArticles.map((article) => article.category))],
     list,
+    pagination: {
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / (pageSize || 1)),
+    }
   }
 }
 

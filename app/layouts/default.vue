@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { useUserStore } from '~~/stores/user'
+
 const route = useRoute()
+const userStore = useUserStore()
+
+const isLoginModalOpen = ref(false)
 </script>
 
 <template>
@@ -18,11 +23,11 @@ const route = useRoute()
             </div>
           </NuxtLink>
 
-          <nav class="hidden md:flex items-center gap-6 text-[14px] font-medium text-gray-600">
-            <a href="#" class="hover:text-gray-900 transition-colors flex items-center gap-1">
-              <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-              共创
-            </a>
+          <div class="hidden md:flex items-center gap-6 text-[14px] font-medium text-gray-600">
+            <NuxtLink to="/" class="hover:text-gray-900 transition-colors flex items-center gap-1">
+              <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+              首页
+            </NuxtLink>
             <a href="#" class="hover:text-gray-900 transition-colors flex items-center gap-1">
               <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               PRIME
@@ -31,28 +36,44 @@ const route = useRoute()
               <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
               Matrix
             </a>
-            <a href="#" class="hover:text-gray-900 transition-colors flex items-center gap-1">
-              <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-              栏目
-            </a>
-            <a href="#" class="hover:text-gray-900 transition-colors flex items-center gap-1">
-              <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-              Pi Store
-            </a>
-          </nav>
+          </div>
         </div>
 
         <!-- Right: Actions -->
-        <div class="flex items-center gap-6 text-gray-400">
+        <div class="flex items-center gap-5 text-gray-400">
           <button class="hover:text-gray-900 transition-colors">
             <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           </button>
-          <NuxtLink to="/admin/articles/create" class="hover:text-gray-900 transition-colors">
-            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-          </NuxtLink>
-          <NuxtLink to="/admin" class="hover:text-gray-900 transition-colors">
-            <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-          </NuxtLink>
+          
+          <ClientOnly>
+            <template v-if="userStore.isAuthenticated">
+              <NuxtLink to="/posts/write" class="flex items-center gap-1.5 rounded-full bg-[#D71A1B] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700">
+                <svg class="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                写文章
+              </NuxtLink>
+
+              <div class="relative group">
+                <NuxtLink to="/user/profile" class="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-700 font-bold text-xs hover:ring-2 hover:ring-gray-300 transition-all cursor-pointer">
+                  {{ userStore.user?.username.charAt(0).toUpperCase() }}
+                </NuxtLink>
+                <!-- Dropdown -->
+                <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div class="px-4 py-3 border-b border-gray-100">
+                    <p class="text-sm font-bold text-gray-900">{{ userStore.user?.username }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5 truncate">{{ userStore.user?.role === 'admin' ? '管理员' : '普通用户' }}</p>
+                  </div>
+                  <div class="p-1">
+                    <NuxtLink to="/user/profile" class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md">个人主页</NuxtLink>
+                    <NuxtLink v-if="userStore.user?.role === 'admin'" to="/admin" class="block px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md">管理后台</NuxtLink>
+                    <button @click="userStore.logout" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md">退出登录</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <button @click="isLoginModalOpen = true" class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">登录 / 注册</button>
+            </template>
+          </ClientOnly>
         </div>
       </div>
     </header>
@@ -100,10 +121,13 @@ const route = useRoute()
           <p>&copy; 2013-2026 深圳少数派网络科技有限公司 少数派</p>
           <div class="mt-2 md:mt-0 flex items-center gap-4">
             <span>Powered by Nuxt & Tailwind CSS</span>
-            <NuxtLink to="/admin" class="hover:text-gray-600 transition">管理系统</NuxtLink>
+            <NuxtLink v-if="userStore.user?.role === 'admin'" to="/admin" class="hover:text-gray-600 transition">管理系统</NuxtLink>
           </div>
         </div>
       </div>
     </footer>
+
+    <!-- Global Auth Modal -->
+    <AuthModal v-model="isLoginModalOpen" />
   </div>
 </template>

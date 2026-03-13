@@ -2,6 +2,9 @@
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import type { BlogArticle, ArticleStatus } from '~~/shared/types/article'
+import { useUserStore } from '~~/stores/user'
+
+const route = useRoute()
 
 interface Props {
   mode: 'create' | 'edit'
@@ -180,11 +183,15 @@ const saveArticle = async () => {
   const savedArticleResponse = props.mode === 'create'
     ? await $fetch<{ article: BlogArticle }>('/api/posts', {
         method: 'POST',
-        body: normalizedArticle,
+        body: Object.fromEntries(
+          Object.entries(normalizedArticle).filter(([key]) => key !== 'id')
+        ),
       })
     : await $fetch<{ article: BlogArticle }>(`/api/posts/${props.article?.slug}`, {
         method: 'PUT',
-        body: normalizedArticle,
+        body: Object.fromEntries(
+          Object.entries(normalizedArticle).filter(([key]) => key !== 'id')
+        ),
       })
 
   const savedArticle = savedArticleResponse.article
@@ -198,17 +205,34 @@ const saveArticle = async () => {
     ? '文章已保存。'
     : '文章更新成功。'
 
+  const userStore = useUserStore()
+  const basePath = userStore.user?.role === 'admin' && route.path.startsWith('/admin') 
+    ? '/admin/articles' 
+    : '/posts/write'
+
   if (props.mode === 'create') {
-    await navigateTo(`/admin/articles/${savedArticle.slug}`)
+    if (basePath === '/posts/write') {
+      await navigateTo(`${basePath}?slug=${savedArticle.slug}`)
+    } else {
+      await navigateTo(`${basePath}/${savedArticle.slug}`)
+    }
     return
   }
 
   if (props.article?.slug && props.article.slug !== savedArticle.slug) {
-    await navigateTo(`/admin/articles/${savedArticle.slug}`)
+    if (basePath === '/posts/write') {
+      await navigateTo(`${basePath}?slug=${savedArticle.slug}`)
+    } else {
+      await navigateTo(`${basePath}/${savedArticle.slug}`)
+    }
     return
   }
 
-  await router.replace(`/admin/articles/${savedArticle.slug}`)
+  if (basePath === '/posts/write') {
+    await router.replace(`${basePath}?slug=${savedArticle.slug}`)
+  } else {
+    await router.replace(`${basePath}/${savedArticle.slug}`)
+  }
 }
 
 const restoreDraft = () => {

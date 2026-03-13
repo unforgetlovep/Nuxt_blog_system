@@ -16,39 +16,69 @@ interface ArticlesResponse {
   }
   categories: string[]
   list: BlogArticle[]
+  pagination?: {
+    total: number
+    page: number
+    pageSize: number
+    totalPages: number
+  }
 }
 
 const activeCategory = ref('全部')
-
-const { data } = await useFetch<ArticlesResponse>('/api/posts', {
-  query: computed(() => ({
-    status: '已发布',
-    sort: 'updatedAt',
-    category: activeCategory.value === '全部' ? undefined : activeCategory.value
-  })),
-})
-
-const articleList = computed(() => data.value?.list ?? [])
-
-// Fix: Extract categories once and keep them stable to prevent leftNav from changing/re-rendering
-const initialCategories = data.value?.categories || ['全部']
 
 // Infinite Scroll
 const pageSize = 10
 const page = ref(1)
 
+const articleList = ref<BlogArticle[]>([])
+const initialCategories = ref<string[]>(['全部'])
+const hasMore = ref(true)
+const isLoading = ref(false)
+
+const fetchArticles = async (isLoadMore = false) => {
+  if (isLoading.value) return
+  isLoading.value = true
+
+  try {
+    const { data } = await useFetch<ArticlesResponse>('/api/posts', {
+      query: {
+        status: '已发布',
+        sort: 'updatedAt',
+        category: activeCategory.value === '全部' ? undefined : activeCategory.value,
+        page: page.value,
+        pageSize,
+      }
+    })
+
+    if (data.value) {
+      if (!isLoadMore) {
+        articleList.value = data.value.list
+        initialCategories.value = data.value.categories
+      } else {
+        articleList.value = [...articleList.value, ...data.value.list]
+      }
+      
+      hasMore.value = data.value.pagination ? page.value < data.value.pagination.totalPages : false
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Initial fetch
+await fetchArticles()
+
 watch(activeCategory, () => {
   page.value = 1
+  hasMore.value = true
+  fetchArticles()
 })
-const displayedArticles = computed(() => {
-  return articleList.value.slice(0, page.value * pageSize)
-})
-const hasMore = computed(() => displayedArticles.value.length < articleList.value.length)
 
 const handleScroll = () => {
   const bottomOfWindow = document.documentElement.scrollTop + window.innerHeight >= document.documentElement.offsetHeight - 100
-  if (bottomOfWindow && hasMore.value) {
+  if (bottomOfWindow && hasMore.value && !isLoading.value) {
     page.value++
+    fetchArticles(true)
   }
 }
 
@@ -68,7 +98,7 @@ const iconMap: Record<string, string> = {
 }
 
 const leftNav = computed(() => {
-  return initialCategories.map(name => ({
+  return initialCategories.value.map(name => ({
     icon: iconMap[name] || 'grid',
     name
   }))
@@ -167,7 +197,7 @@ const popularArticles = computed(() => {
 
       <div class="space-y-6">
         <article
-          v-for="article in displayedArticles"
+          v-for="article in articleList"
           :key="article.slug"
           class="group flex flex-col-reverse sm:flex-row gap-5 sm:gap-8 justify-between items-start border-b border-gray-100 pb-6 last:border-0"
         >
