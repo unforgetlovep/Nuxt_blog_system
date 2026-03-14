@@ -6,14 +6,23 @@ export const useUserStore = defineStore('user', () => {
   const user = ref<User | null>(null)
   const isAuthenticated = ref(false)
 
-  const fetchUser = async () => {
+  const setUser = (userData: User | null) => {
+    user.value = userData
+    isAuthenticated.value = !!userData
+  }
+
+  const fetchUser = async (customFetch?: typeof $fetch) => {
     try {
-      const { data } = await $fetch('/api/auth/me')
+      const fetchFn = customFetch || $fetch
+      const data: any = await fetchFn('/api/auth/me')
       if (data?.user) {
         user.value = data.user
         isAuthenticated.value = true
+      } else {
+        user.value = null
+        isAuthenticated.value = false
       }
-    } catch (e) {
+    } catch {
       user.value = null
       isAuthenticated.value = false
     }
@@ -30,10 +39,11 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  return {
-    user,
-    isAuthenticated,
-    fetchUser,
-    logout
-  }
+  return { user, isAuthenticated, setUser, fetchUser, logout }
+}, {
+  persist: {
+    // 使用 Cookie 存储，SSR 和 CSR 均可读取，解决刷新丢失登录态问题
+    storage: piniaPluginPersistedstate.cookies(),
+    pick: ['user', 'isAuthenticated'],
+  },
 })

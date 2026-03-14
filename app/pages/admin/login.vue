@@ -28,7 +28,7 @@ const handleLogin = async () => {
     })
 
     if (error.value) {
-      errorMessage.value = error.value.statusMessage || '登录失败，请检查凭证'
+      errorMessage.value = error.value.data?.statusMessage || error.value.data?.message || error.value.statusMessage || '用户名或密码不正确'
       return
     }
 

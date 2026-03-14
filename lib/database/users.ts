@@ -31,7 +31,7 @@ export const registerUser = async (data: Pick<NewUserRow, 'username' | 'password
   if (existingUser.length > 0) {
     throw createError({
       statusCode: 400,
-      statusMessage: '用户名已存在',
+      statusMessage: '用户名已占用',
     })
   }
 

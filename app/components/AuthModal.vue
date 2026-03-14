@@ -60,7 +60,7 @@ const handleSubmit = async () => {
       closeModal()
     }
   } catch (err: any) {
-    errorMessage.value = err.statusMessage || (isRegisterMode.value ? '注册失败' : '登录失败')
+    errorMessage.value = err.data?.statusMessage || err.data?.message || err.statusMessage || err.message || (isRegisterMode.value ? '注册失败，请稍后再试' : '用户名或密码不正确')
   } finally {
     loading.value = false
   }
