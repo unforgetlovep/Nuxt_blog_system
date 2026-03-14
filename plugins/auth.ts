@@ -1,3 +1,5 @@
+import { useUserStore } from '~~/stores/user'
+
 // pinia-plugin-persistedstate 会在 SSR/CSR 两端自动从 Cookie 恢复状态
 // 此插件只负责校验 Token 有效性，确保过期 Token 不会导致"假登录"
 export default defineNuxtPlugin(async () => {

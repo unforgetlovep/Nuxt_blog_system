@@ -43,7 +43,11 @@ export const useUserStore = defineStore('user', () => {
 }, {
   persist: {
     // 使用 Cookie 存储，SSR 和 CSR 均可读取，解决刷新丢失登录态问题
-    storage: piniaPluginPersistedstate.cookies(),
+    // maxAge 与 JWT 有效期保持一致（7天）
+    storage: piniaPluginPersistedstate.cookies({
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'lax',
+    }),
     pick: ['user', 'isAuthenticated'],
   },
 })

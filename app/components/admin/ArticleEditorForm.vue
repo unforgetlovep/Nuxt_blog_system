@@ -5,6 +5,7 @@ import type { BlogArticle, ArticleStatus } from '~~/shared/types/article'
 import { useUserStore } from '~~/stores/user'
 
 const route = useRoute()
+const userStore = useUserStore()
 
 interface Props {
   mode: 'create' | 'edit'
@@ -22,26 +23,29 @@ const props = withDefaults(defineProps<Props>(), {
 
 const router = useRouter()
 
+const isAdmin = computed(() => userStore.user?.role === 'admin')
+
 const categoryOptions = ['效率工具', '生活方式', '数码评测', '经验分享', '商业观点']
 const tagOptions = ['苹果', '效率', '硬件', 'NAS', '软件', '咖啡', '知识管理']
 const statusOptions: ArticleStatus[] = ['草稿', '待审核', '已发布']
 const defaultCover = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80'
 
+// 新建模式默认空白，编辑模式由 article prop 填充
 const createInitialArticle = (): BlogArticle => ({
   id: 0,
-  slug: 'new-article',
-  title: '用内容系统整理前端实践与产品笔记',
-  summary: '围绕内容策划、写作、发布与展示建立一套清晰的工作流，让文章管理与前台阅读体验保持一致。',
-  content: `## 内容定位\n\n- 记录前端开发中的关键实践\n- 沉淀产品思考、设计观察与项目复盘\n- 让文章从草稿到发布形成稳定流程\n\n## 写作建议\n\n先写清问题背景，再整理方法与结论，最后补充可复用的经验与参考资料。`,
-  status: '草稿',
-  updatedAt: '2026-03-08T10:00',
-  createdAt: '2026-03-08',
-  category: '前端开发',
-  author: 'Admin',
-  tags: ['Nuxt', 'Vue', 'TypeScript'],
+  slug: '',
+  title: '',
+  summary: '',
+  content: '',
+  status: '待审核',
+  updatedAt: new Date().toISOString().slice(0, 16),
+  createdAt: new Date().toISOString().slice(0, 10),
+  category: categoryOptions[0],
+  author: userStore.user?.username || '',
+  tags: [],
   views: 0,
-  readTime: '6 分钟',
-  cover: defaultCover,
+  readTime: '1 分钟',
+  cover: '',
   featured: false,
 })
 
@@ -78,6 +82,7 @@ const lastSavedAt = ref('')
 const availableDraft = ref<StoredDraft | null>(null)
 const isSlugCustomized = ref(false)
 const submitMessage = ref('')
+const customTagInput = ref('')
 
 const draftStorageKey = computed(() =>
   `blog-system:draft:${props.mode === 'create' ? 'new-article' : props.article?.slug || form.slug}`,
@@ -107,6 +112,12 @@ const formattedSavedAt = computed(() => {
 
 const applyArticleToForm = (article?: BlogArticle | null) => {
   const nextArticle = cloneArticle(article)
+
+  // 新建模式下作者固定取当前登录用户
+  if (props.mode === 'create') {
+    nextArticle.author = userStore.user?.username || nextArticle.author
+    nextArticle.createdAt = new Date().toISOString().slice(0, 10)
+  }
 
   Object.assign(form, nextArticle)
   isSlugCustomized.value = Boolean(article?.slug)
@@ -174,11 +185,17 @@ const saveArticle = async () => {
   normalizedArticle.title = form.title.trim()
   normalizedArticle.summary = form.summary.trim()
   normalizedArticle.content = form.content.trim()
-  normalizedArticle.author = form.author.trim() || 'Admin'
   normalizedArticle.readTime = estimatedReadTime.value
   normalizedArticle.cover = form.cover.trim() || defaultCover
+  // 发布/更新时间自动取当前时间
   normalizedArticle.updatedAt = now.slice(0, 10)
-  normalizedArticle.createdAt = form.createdAt || now.slice(0, 10)
+  // 新建时作者和创建时间固定取当前用户和当前日期
+  normalizedArticle.author = props.mode === 'create'
+    ? (userStore.user?.username || 'Admin')
+    : (form.author.trim() || 'Admin')
+  normalizedArticle.createdAt = props.mode === 'create'
+    ? now.slice(0, 10)
+    : (form.createdAt || now.slice(0, 10))
 
   const savedArticleResponse = props.mode === 'create'
     ? await $fetch<{ article: BlogArticle }>('/api/posts', {
@@ -205,9 +222,8 @@ const saveArticle = async () => {
     ? '文章已保存。'
     : '文章更新成功。'
 
-  const userStore = useUserStore()
-  const basePath = userStore.user?.role === 'admin' && route.path.startsWith('/admin') 
-    ? '/admin/articles' 
+  const basePath = isAdmin.value && route.path.startsWith('/admin')
+    ? '/admin/articles'
     : '/posts/write'
 
   if (props.mode === 'create') {
@@ -258,6 +274,23 @@ const toggleTag = (tag: string) => {
   }
 
   form.tags = [...form.tags, tag]
+}
+
+const addCustomTag = () => {
+  const tag = customTagInput.value.trim()
+  if (!tag || form.tags.includes(tag)) {
+    customTagInput.value = ''
+    return
+  }
+  form.tags = [...form.tags, tag]
+  customTagInput.value = ''
+}
+
+const removeTag = (tag: string) => {
+  // 仅允许移除不在预设列表中的自定义标签
+  if (!tagOptions.includes(tag)) {
+    form.tags = form.tags.filter((item) => item !== tag)
+  }
 }
 
 watch(
@@ -363,10 +396,14 @@ watch(
             >
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">标识 (Slug)</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              标识 (Slug)
+              <span class="ml-1 text-xs font-normal text-gray-400">自动生成，可手动修改</span>
+            </label>
             <input
               v-model="form.slug"
               type="text"
+              placeholder="auto-generated-from-title"
               class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               @input="isSlugCustomized = true"
             >
@@ -378,7 +415,7 @@ watch(
           <textarea
             v-model="form.summary"
             rows="3"
-            placeholder="简要描述文章内容"
+            placeholder="简要描述文章内容，将显示在文章列表中（建议 50-120 字）"
             class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -406,7 +443,8 @@ watch(
              <h3 class="text-base font-semibold text-gray-900">发布设置</h3>
           </div>
           <div class="p-4 space-y-4">
-            <div>
+            <!-- 文章状态：仅管理员可见 -->
+            <div v-if="isAdmin">
               <label class="block text-sm font-medium text-gray-700 mb-1">文章状态</label>
               <select
                 v-model="form.status"
@@ -419,33 +457,24 @@ watch(
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">最近更新时间</label>
-              <input
-                v-model="form.updatedAt"
-                type="datetime-local"
-                class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-            </div>
-
-            <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">封面图地址</label>
               <input
                 v-model="form.cover"
                 type="url"
-                placeholder="https://..."
+                placeholder="https://... （留空将使用默认封面）"
                 class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
               <div class="mt-2 rounded border border-gray-200 overflow-hidden bg-gray-50 aspect-video">
                 <img
-                  v-if="form.cover || defaultCover"
                   :src="form.cover || defaultCover"
-                  :alt="form.title"
+                  :alt="form.title || '封面预览'"
                   class="h-full w-full object-cover"
                 >
               </div>
             </div>
 
-            <div class="flex items-center justify-between mt-2">
+            <!-- 精选文章：仅管理员可见 -->
+            <div v-if="isAdmin" class="flex items-center justify-between mt-2">
               <div>
                 <label class="text-sm font-medium text-gray-700">设为精选文章</label>
                 <p class="text-xs text-gray-500">首页优先展示</p>
@@ -483,6 +512,7 @@ watch(
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">标签</label>
+              <!-- 预设标签 -->
               <div class="flex flex-wrap gap-2">
                 <button
                   v-for="tag in tagOptions"
@@ -499,25 +529,55 @@ watch(
                   {{ tag }}
                 </button>
               </div>
+
+              <!-- 已添加的自定义标签 -->
+              <div v-if="form.tags.some(t => !tagOptions.includes(t))" class="flex flex-wrap gap-2 mt-2">
+                <span
+                  v-for="tag in form.tags.filter(t => !tagOptions.includes(t))"
+                  :key="tag"
+                  class="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium bg-purple-50 border border-purple-200 text-purple-700"
+                >
+                  {{ tag }}
+                  <button type="button" class="hover:text-purple-900 leading-none" @click="removeTag(tag)">×</button>
+                </span>
+              </div>
+
+              <!-- 自定义标签输入 -->
+              <div class="mt-3 flex gap-2">
+                <input
+                  v-model="customTagInput"
+                  type="text"
+                  placeholder="自定义标签…"
+                  maxlength="20"
+                  class="flex-1 min-w-0 rounded border border-gray-300 px-2.5 py-1.5 text-xs text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  @keydown.enter.prevent="addCustomTag"
+                >
+                <button
+                  type="button"
+                  class="rounded border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition whitespace-nowrap"
+                  @click="addCustomTag"
+                >
+                  添加
+                </button>
+              </div>
             </div>
 
+            <!-- 作者与时间（只读展示） -->
             <div class="grid gap-3 pt-2 border-t border-gray-100">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">作者</label>
-                <input
-                  v-model="form.author"
-                  type="text"
-                  class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
+                <div class="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                  {{ form.author || userStore.user?.username || '—' }}
+                </div>
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">创建时间</label>
-                <input
-                  v-model="form.createdAt"
-                  type="date"
-                  class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  {{ mode === 'create' ? '创建时间' : '创建时间' }}
+                </label>
+                <div class="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                  {{ mode === 'create' ? new Date().toLocaleDateString('zh-CN') : form.createdAt }}
+                </div>
               </div>
             </div>
           </div>
