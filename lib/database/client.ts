@@ -1,25 +1,19 @@
-import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { createClient } from '@libsql/client'
+import mysql from 'mysql2/promise'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
+import { drizzle } from 'drizzle-orm/mysql2'
 import { mockArticles } from '~~/shared/data/articles'
 import { articles, users } from './schema'
 
-const databaseFilePath = join(process.cwd(), '.data', 'blog.sqlite')
-const databaseUrl = `file:${databaseFilePath.replace(/\\/g, '/')}`
+const databaseUrl = process.env.DATABASE_URL || 'mysql://root:password@127.0.0.1:3306/blog_system'
 
-mkdirSync(dirname(databaseFilePath), { recursive: true })
+const poolConnection = mysql.createPool(databaseUrl)
 
-const client = createClient({
-  url: databaseUrl,
-})
-
-export const db = drizzle(client, {
+export const db = drizzle(poolConnection, {
   schema: {
     articles,
     users,
   },
+  mode: 'default'
 })
 
 let isInitialized = false
@@ -29,44 +23,44 @@ export const initializeDatabase = async () => {
     return
   }
 
-  await client.execute(`
+  await poolConnection.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      avatar TEXT,
-      created_at TEXT NOT NULL
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) NOT NULL UNIQUE,
+      password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) NOT NULL DEFAULT 'user',
+      avatar VARCHAR(255),
+      created_at VARCHAR(255) NOT NULL
     )
   `)
 
-  await client.execute(`
+  await poolConnection.query(`
     CREATE TABLE IF NOT EXISTS articles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      title TEXT NOT NULL,
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(255) NOT NULL UNIQUE,
+      title VARCHAR(255) NOT NULL,
       summary TEXT NOT NULL,
-      category TEXT NOT NULL,
-      status TEXT NOT NULL,
-      author TEXT NOT NULL,
-      author_id INTEGER REFERENCES users(id),
-      updated_at TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      read_time TEXT NOT NULL,
-      views INTEGER NOT NULL DEFAULT 0,
+      category VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL,
+      author VARCHAR(255) NOT NULL,
+      author_id INT,
+      updated_at VARCHAR(255) NOT NULL,
+      created_at VARCHAR(255) NOT NULL,
+      read_time VARCHAR(255) NOT NULL,
+      views INT NOT NULL DEFAULT 0,
       tags TEXT NOT NULL,
-      cover TEXT NOT NULL,
-      featured INTEGER NOT NULL DEFAULT 0,
-      content TEXT NOT NULL
+      cover VARCHAR(255) NOT NULL,
+      featured BOOLEAN NOT NULL DEFAULT 0,
+      content LONGTEXT NOT NULL,
+      FOREIGN KEY (author_id) REFERENCES users(id)
     )
   `)
 
   // Add author_id column to existing articles table if it doesn't exist
   try {
-    const tableInfo = await client.execute("PRAGMA table_info(articles)")
-    const hasAuthorId = tableInfo.rows.some(row => row.name === 'author_id')
-    if (!hasAuthorId) {
-      await client.execute("ALTER TABLE articles ADD COLUMN author_id INTEGER REFERENCES users(id)")
+    const [rows]: any = await poolConnection.query("SHOW COLUMNS FROM articles LIKE 'author_id'")
+    if (rows.length === 0) {
+      await poolConnection.query("ALTER TABLE articles ADD COLUMN author_id INT, ADD FOREIGN KEY (author_id) REFERENCES users(id)")
     }
   } catch (e) {
     console.error("Error modifying articles table", e)

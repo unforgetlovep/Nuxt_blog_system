@@ -3,8 +3,8 @@ import { defineConfig } from 'drizzle-kit'
 export default defineConfig({
   schema: './lib/database/schema.ts',
   out: './drizzle',
-  dialect: 'sqlite',
+  dialect: 'mysql',
   dbCredentials: {
-    url: './.data/blog.sqlite',
+    url: process.env.DATABASE_URL || 'mysql://root:password@127.0.0.1:3306/blog_system',
   },
 })
