@@ -1,11 +1,51 @@
 <script setup lang="ts">
-import { MdEditor } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
 import type { BlogArticle, ArticleStatus } from '~~/shared/types/article'
 import { useUserStore } from '~~/stores/user'
 
 const route = useRoute()
 const userStore = useUserStore()
+
+// ---- 图片上传 ----
+const coverFileInputRef = ref<HTMLInputElement | null>(null)
+const isCoverUploading = ref(false)
+const coverUploadError = ref('')
+
+async function uploadImageFile(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const result = await $fetch<{ url: string }>('/api/upload', {
+    method: 'POST',
+    body: formData,
+  })
+
+  return result.url
+}
+
+/** 点击"上传封面"按钮 → 触发隐藏 input */
+function triggerCoverUpload() {
+  coverFileInputRef.value?.click()
+}
+
+/** 封面图文件选择后处理 */
+async function handleCoverFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  coverUploadError.value = ''
+  isCoverUploading.value = true
+
+  try {
+    form.cover = await uploadImageFile(file)
+  } catch (err: unknown) {
+    coverUploadError.value = err instanceof Error ? err.message : '封面上传失败，请重试'
+  } finally {
+    isCoverUploading.value = false
+    // 重置 input，允许重复选同一文件
+    input.value = ''
+  }
+}
 
 interface Props {
   mode: 'create' | 'edit'
@@ -40,7 +80,7 @@ const createInitialArticle = (): BlogArticle => ({
   status: '待审核',
   updatedAt: new Date().toISOString().slice(0, 16),
   createdAt: new Date().toISOString().slice(0, 10),
-  category: categoryOptions[0],
+  category: categoryOptions[0] || '',
   author: userStore.user?.username || '',
   tags: [],
   views: 0,
@@ -91,7 +131,7 @@ const draftStorageKey = computed(() =>
 const hasUnsavedChanges = computed(() => serializeArticle(form) !== lastSavedSnapshot.value)
 
 const estimatedReadTime = computed(() => {
-  const plainTextLength = form.content.replace(/[#>*`\-\n\r]/g, '').trim().length
+  const plainTextLength = form.content.replace(/<[^>]*>/g, '').trim().length
   const minutes = Math.max(1, Math.ceil(plainTextLength / 320))
 
   return `${minutes} 分钟`
@@ -422,16 +462,15 @@ watch(
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">正文内容 <span class="text-red-500">*</span></label>
-          <div class="border border-gray-300 rounded overflow-hidden">
-            <ClientOnly fallback-tag="div" fallback="Markdown 编辑器加载中...">
-              <MdEditor
-                v-model="form.content"
-                class="min-h-[500px]"
-                preview-theme="github"
-                code-theme="atom"
-              />
-            </ClientOnly>
+          <div class="text-xs text-gray-400 mb-1.5">
+            点击工具栏图片图标可上传图片，图片将自动保存到阿里云 OSS 并插入到文章中
           </div>
+          <ClientOnly fallback-tag="div" fallback="编辑器加载中…">
+            <AdminTiptapEditor
+              v-model="form.content"
+              :upload-image="uploadImageFile"
+            />
+          </ClientOnly>
         </div>
       </div>
 
@@ -457,13 +496,55 @@ watch(
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">封面图地址</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">封面图</label>
+              <!-- 封面图 URL 输入 + 上传按钮 -->
+              <div class="flex gap-2">
+                <input
+                  v-model="form.cover"
+                  type="url"
+                  placeholder="https://... 或点击上传按钮"
+                  class="flex-1 min-w-0 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                <button
+                  type="button"
+                  :disabled="isCoverUploading"
+                  class="shrink-0 flex items-center gap-1.5 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  @click="triggerCoverUpload"
+                >
+                  <svg
+                    v-if="!isCoverUploading"
+                    class="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <svg
+                    v-else
+                    class="w-4 h-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                  </svg>
+                  {{ isCoverUploading ? '上传中' : '上传' }}
+                </button>
+              </div>
+              <!-- 隐藏的文件输入 -->
               <input
-                v-model="form.cover"
-                type="url"
-                placeholder="https://... （留空将使用默认封面）"
-                class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                ref="coverFileInputRef"
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                class="hidden"
+                @change="handleCoverFileChange"
               >
+              <!-- 错误提示 -->
+              <p v-if="coverUploadError" class="mt-1 text-xs text-red-500">
+                {{ coverUploadError }}
+              </p>
+              <!-- 封面预览 -->
               <div class="mt-2 rounded border border-gray-200 overflow-hidden bg-gray-50 aspect-video">
                 <img
                   :src="form.cover || defaultCover"

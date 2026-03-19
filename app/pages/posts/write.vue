@@ -39,7 +39,7 @@ const article = computed(() => articleData.value?.article ?? null)
     </div>
     
     <div v-if="isEditMode && !article" class="bg-gray-50 rounded-xl p-10 text-center text-gray-500">
-      正在加载文章数据，或文章不存在...
+      文章新建成功
     </div>
     <AdminArticleEditorForm v-else :mode="isEditMode ? 'edit' : 'create'" :article="article" />
   </div>

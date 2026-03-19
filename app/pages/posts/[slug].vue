@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import MarkdownIt from 'markdown-it'
 import type { BlogArticle } from '~~/shared/types/article'
 
 const route = useRoute()
@@ -11,12 +10,6 @@ const { data } = await useFetch<{ article: BlogArticle }>(
   },
 )
 const article = computed(() => data.value?.article ?? null)
-const markdown = new MarkdownIt({
-  breaks: true,
-  linkify: true,
-})
-
-const renderedContent = computed(() => markdown.render(article.value?.content ?? ''))
 
 useSeoMeta({
   title: () => article.value?.title ? `${article.value.title} - Blog System` : '文章详情',
@@ -76,7 +69,7 @@ useSeoMeta({
         <!-- Content -->
         <div
           class="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:leading-relaxed prose-li:text-gray-700 prose-li:leading-relaxed prose-strong:text-gray-900 prose-a:text-red-600 prose-a:no-underline hover:prose-a:underline prose-img:rounded-lg prose-blockquote:border-red-600 prose-blockquote:bg-gray-50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic"
-          v-html="renderedContent"
+          v-html="article.content"
         />
 
         <!-- Tags -->
