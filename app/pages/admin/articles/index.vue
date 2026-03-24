@@ -36,7 +36,7 @@ interface ArticlesResponse {
   }
 }
 
-const { data, pending } = await useFetch<ArticlesResponse>('/api/posts', {
+const { data, pending, refresh } = await useFetch<ArticlesResponse>('/api/posts', {
   query,
 })
 
@@ -47,6 +47,201 @@ watch([activeCategory, searchKeyword, sortValue], () => {
 const filterTabs = computed(() => data.value?.categories ?? ['全部'])
 const articleList = computed(() => data.value?.list ?? [])
 const pagination = computed(() => data.value?.pagination)
+const statusOptions: BlogArticle['status'][] = ['草稿', '待审核', '已发布']
+const selectedSlugs = ref<string[]>([])
+const bulkStatus = ref<BlogArticle['status']>('待审核')
+const updatingStatusMap = ref<Record<string, boolean>>({})
+const deletingMap = ref<Record<string, boolean>>({})
+const isBulkUpdating = ref(false)
+const operationMessage = ref('')
+const operationError = ref('')
+
+const isAllSelected = computed(() => {
+  return articleList.value.length > 0 && selectedSlugs.value.length === articleList.value.length
+})
+
+const selectedArticles = computed(() =>
+  articleList.value.filter((article) => selectedSlugs.value.includes(article.slug)),
+)
+
+watch(articleList, () => {
+  const availableSlugs = new Set(articleList.value.map((article) => article.slug))
+  selectedSlugs.value = selectedSlugs.value.filter((slug) => availableSlugs.has(slug))
+})
+
+const clearOperationMessage = () => {
+  operationMessage.value = ''
+  operationError.value = ''
+}
+
+const setRowUpdating = (slug: string, isUpdating: boolean) => {
+  updatingStatusMap.value = {
+    ...updatingStatusMap.value,
+    [slug]: isUpdating,
+  }
+}
+
+const setRowDeleting = (slug: string, isDeleting: boolean) => {
+  deletingMap.value = {
+    ...deletingMap.value,
+    [slug]: isDeleting,
+  }
+}
+
+const toggleSelectAll = (checked: boolean) => {
+  selectedSlugs.value = checked ? articleList.value.map((article) => article.slug) : []
+}
+
+const handleStatusChange = async (article: BlogArticle, nextStatus: BlogArticle['status']) => {
+  if (article.status === nextStatus) return
+
+  const previousStatus = article.status
+  article.status = nextStatus
+  setRowUpdating(article.slug, true)
+  clearOperationMessage()
+
+  try {
+    const { id, ...payload } = article
+    const now = new Date().toISOString().slice(0, 10)
+
+    await $fetch(`/api/posts/${encodeURIComponent(article.slug)}`, {
+      method: 'PUT',
+      body: {
+        ...payload,
+        status: nextStatus,
+        updatedAt: now,
+      },
+    })
+
+    article.updatedAt = now
+    operationMessage.value = `《${article.title}》状态已更新为「${nextStatus}」`
+  } catch (error: any) {
+    article.status = previousStatus
+    operationError.value = error?.data?.statusMessage || error?.message || '状态更新失败，请稍后重试'
+  } finally {
+    setRowUpdating(article.slug, false)
+  }
+}
+
+const handleBulkStatusUpdate = async () => {
+  if (selectedArticles.value.length === 0) {
+    operationError.value = '请先选择要批量更新的文章'
+    operationMessage.value = ''
+    return
+  }
+
+  isBulkUpdating.value = true
+  clearOperationMessage()
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const article of selectedArticles.value) {
+    if (article.status === bulkStatus.value) continue
+
+    const previousStatus = article.status
+    article.status = bulkStatus.value
+    setRowUpdating(article.slug, true)
+
+    try {
+      const { id, ...payload } = article
+      const now = new Date().toISOString().slice(0, 10)
+      await $fetch(`/api/posts/${encodeURIComponent(article.slug)}`, {
+        method: 'PUT',
+        body: {
+          ...payload,
+          status: bulkStatus.value,
+          updatedAt: now,
+        },
+      })
+      article.updatedAt = now
+      successCount += 1
+    } catch {
+      article.status = previousStatus
+      failCount += 1
+    } finally {
+      setRowUpdating(article.slug, false)
+    }
+  }
+
+  if (successCount > 0) {
+    operationMessage.value = `批量更新完成：成功 ${successCount} 篇${failCount > 0 ? `，失败 ${failCount} 篇` : ''}`
+  }
+
+  if (failCount > 0 && successCount === 0) {
+    operationError.value = '批量更新失败，请稍后重试'
+  } else if (failCount > 0) {
+    operationError.value = `部分文章更新失败（${failCount} 篇）`
+  }
+
+  isBulkUpdating.value = false
+}
+
+const handleDeleteArticle = async (article: BlogArticle) => {
+  const confirmed = window.confirm(`确认删除《${article.title}》吗？此操作不可撤销。`)
+  if (!confirmed) return
+
+  clearOperationMessage()
+  setRowDeleting(article.slug, true)
+
+  try {
+    await $fetch(`/api/posts/${encodeURIComponent(article.slug)}`, {
+      method: 'DELETE',
+    })
+    selectedSlugs.value = selectedSlugs.value.filter((slug) => slug !== article.slug)
+    await refresh()
+    operationMessage.value = `《${article.title}》已删除`
+  } catch (error: any) {
+    operationError.value = error?.data?.statusMessage || error?.message || '删除失败，请稍后重试'
+  } finally {
+    setRowDeleting(article.slug, false)
+  }
+}
+
+const handleBulkDelete = async () => {
+  if (selectedArticles.value.length === 0) {
+    operationError.value = '请先选择要删除的文章'
+    operationMessage.value = ''
+    return
+  }
+
+  const confirmed = window.confirm(`确认批量删除已选的 ${selectedArticles.value.length} 篇文章吗？此操作不可撤销。`)
+  if (!confirmed) return
+
+  isBulkUpdating.value = true
+  clearOperationMessage()
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const article of selectedArticles.value) {
+    setRowDeleting(article.slug, true)
+    try {
+      await $fetch(`/api/posts/${encodeURIComponent(article.slug)}`, {
+        method: 'DELETE',
+      })
+      successCount += 1
+    } catch {
+      failCount += 1
+    } finally {
+      setRowDeleting(article.slug, false)
+    }
+  }
+
+  if (successCount > 0) {
+    operationMessage.value = `批量删除完成：成功 ${successCount} 篇${failCount > 0 ? `，失败 ${failCount} 篇` : ''}`
+  }
+
+  if (failCount > 0 && successCount === 0) {
+    operationError.value = '批量删除失败，请稍后重试'
+  } else if (failCount > 0) {
+    operationError.value = `部分文章删除失败（${failCount} 篇）`
+  }
+
+  selectedSlugs.value = []
+  await refresh()
+  isBulkUpdating.value = false
+}
 
 const getStatusClass = (status: string) => {
   switch (status) {
@@ -80,13 +275,22 @@ const getStatusClass = (status: string) => {
         </NuxtLink>
       </div>
     </div>
+    <div v-if="operationMessage || operationError" class="space-y-2">
+      <p v-if="operationMessage" class="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        {{ operationMessage }}
+      </p>
+      <p v-if="operationError" class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {{ operationError }}
+      </p>
+    </div>
 
     <!-- Filters & List Card -->
     <div class="bg-white rounded border border-gray-200 shadow-sm overflow-hidden flex flex-col">
       <!-- Toolbar -->
-      <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="p-4 border-b border-gray-200 bg-gray-50 flex flex-col gap-4">
         <!-- Category Tabs -->
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2 lg:justify-between">
+          <div class="flex flex-wrap gap-2">
           <button
             v-for="tab in filterTabs"
             :key="tab"
@@ -101,6 +305,33 @@ const getStatusClass = (status: string) => {
           >
             {{ tab }}
           </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">已选 {{ selectedSlugs.length }} 篇</span>
+            <select
+              v-model="bulkStatus"
+              :disabled="isBulkUpdating || selectedSlugs.length === 0"
+              class="rounded border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+            </select>
+            <button
+              type="button"
+              :disabled="isBulkUpdating || selectedSlugs.length === 0"
+              class="rounded border border-blue-300 bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              @click="handleBulkStatusUpdate"
+            >
+              {{ isBulkUpdating ? '批量更新中...' : '批量改状态' }}
+            </button>
+            <button
+              type="button"
+              :disabled="isBulkUpdating || selectedSlugs.length === 0"
+              class="rounded border border-red-300 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              @click="handleBulkDelete"
+            >
+              {{ isBulkUpdating ? '批量处理中...' : '批量删除' }}
+            </button>
+          </div>
         </div>
 
         <!-- Search & Sort -->
@@ -134,6 +365,13 @@ const getStatusClass = (status: string) => {
         <table class="w-full text-left text-sm whitespace-nowrap">
           <thead class="bg-gray-50 text-gray-500 border-b border-gray-200 font-medium">
             <tr>
+              <th class="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  :checked="isAllSelected"
+                  @change="toggleSelectAll(($event.target as HTMLInputElement).checked)"
+                >
+              </th>
               <th class="px-6 py-3">文章标题</th>
               <th class="px-6 py-3">分类</th>
               <th class="px-6 py-3">状态</th>
@@ -144,12 +382,19 @@ const getStatusClass = (status: string) => {
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-if="pending">
-              <td colspan="6" class="px-6 py-10 text-center text-gray-500">正在加载文章数据...</td>
+              <td colspan="7" class="px-6 py-10 text-center text-gray-500">正在加载文章数据...</td>
             </tr>
             <tr v-else-if="articleList.length === 0">
-              <td colspan="6" class="px-6 py-10 text-center text-gray-500">没有匹配的文章，请尝试调整筛选条件。</td>
+              <td colspan="7" class="px-6 py-10 text-center text-gray-500">没有匹配的文章，请尝试调整筛选条件。</td>
             </tr>
             <tr v-for="article in articleList" :key="article.slug" class="hover:bg-gray-50 transition">
+              <td class="px-4 py-4">
+                <input
+                  v-model="selectedSlugs"
+                  type="checkbox"
+                  :value="article.slug"
+                >
+              </td>
               <td class="px-6 py-4">
                 <div class="flex flex-col max-w-[300px] lg:max-w-[400px]">
                   <span class="font-medium text-gray-900 truncate" :title="article.title">{{ article.title }}</span>
@@ -160,9 +405,23 @@ const getStatusClass = (status: string) => {
                 <span class="text-gray-600">{{ article.category }}</span>
               </td>
               <td class="px-6 py-4">
-                <span :class="['px-2.5 py-1 rounded text-xs font-medium', getStatusClass(article.status)]">
-                  {{ article.status }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <select
+                    :value="article.status"
+                    :disabled="!!updatingStatusMap[article.slug] || isBulkUpdating"
+                    :class="[
+                      'rounded border px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1',
+                      getStatusClass(article.status),
+                      updatingStatusMap[article.slug] ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
+                    ]"
+                    @change="handleStatusChange(article, ($event.target as HTMLSelectElement).value as BlogArticle['status'])"
+                  >
+                    <option v-for="status in statusOptions" :key="status" :value="status">
+                      {{ status }}
+                    </option>
+                  </select>
+                  <span v-if="updatingStatusMap[article.slug]" class="text-xs text-gray-400">更新中...</span>
+                </div>
               </td>
               <td class="px-6 py-4 text-gray-600">{{ article.author }}</td>
               <td class="px-6 py-4 text-gray-500 text-xs">{{ article.updatedAt }}</td>
@@ -182,6 +441,15 @@ const getStatusClass = (status: string) => {
                   >
                     预览
                   </NuxtLink>
+                  <span class="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    :disabled="!!deletingMap[article.slug]"
+                    class="font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="handleDeleteArticle(article)"
+                  >
+                    {{ deletingMap[article.slug] ? '删除中...' : '删除' }}
+                  </button>
                 </div>
               </td>
             </tr>
