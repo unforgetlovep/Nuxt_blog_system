@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { createError } from 'h3'
 import type { BlogArticle } from '~~/shared/types/article'
@@ -100,66 +100,104 @@ export const getArticles = async (query: ArticleQuery & { page?: number; pageSiz
     pageSize,
   } = query
 
-  let list = (await db.select().from(articles)).map(toBlogArticle)
+  const trimmedSearch = search.trim()
+
+  const whereConditions: any[] = []
 
   if (category !== '全部') {
-    list = list.filter((article) => article.category === category)
+    whereConditions.push(eq(articles.category, category))
   }
 
   if (status !== '全部') {
-    list = list.filter((article) => article.status === status)
+    whereConditions.push(eq(articles.status, status))
   }
 
-  if (search.trim()) {
-    const normalizedSearch = search.trim().toLowerCase()
+  // Fuzzy search across title/summary/author/category/tags(text JSON).
+  // Note: tags are stored as JSON text; using LIKE is a best-effort match.
+  if (trimmedSearch) {
+    const normalized = trimmedSearch.toLowerCase()
+    const pattern = `%${normalized}%`
 
-    list = list.filter((article) => {
-      const content = [
-        article.title,
-        article.summary,
-        article.author,
-        article.category,
-        article.tags.join(' '),
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      return content.includes(normalizedSearch)
-    })
+    whereConditions.push(
+      or(
+        sql`LOWER(${articles.title}) LIKE ${pattern}`,
+        sql`LOWER(${articles.summary}) LIKE ${pattern}`,
+        sql`LOWER(${articles.author}) LIKE ${pattern}`,
+        sql`LOWER(${articles.category}) LIKE ${pattern}`,
+        sql`LOWER(${articles.tags}) LIKE ${pattern}`,
+      ),
+    )
   }
 
-  if (sort === 'views') {
-    list.sort((left, right) => right.views - left.views)
-  } else if (sort === 'createdAt') {
-    list.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-  } else {
-    list.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  const whereCondition = whereConditions.length > 0 ? and(...whereConditions) : undefined
+
+  // Pagination total should reflect the same filters as list.
+  let filteredTotalQuery = db.select({ count: sql<number>`count(*)` }).from(articles)
+  if (whereCondition) {
+    filteredTotalQuery = filteredTotalQuery.where(whereCondition)
   }
+  const [{ count: filteredTotal }] = await filteredTotalQuery
 
-  const allArticles = (await db.select().from(articles)).map(toBlogArticle)
+  // Stats are based on all articles (not filtered by current list filters).
+  const [{ count: allTotal }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(articles)
 
-  const total = list.length
+  const [{ count: published }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(articles)
+    .where(eq(articles.status, '已发布'))
+
+  const [{ count: draft }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(articles)
+    .where(eq(articles.status, '草稿'))
+
+  const [{ count: review }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(articles)
+    .where(eq(articles.status, '待审核'))
+
+  const categories = await db
+    .select({ category: articles.category })
+    .from(articles)
+    .groupBy(articles.category)
+
+  const orderExpr =
+    sort === 'views'
+      ? sql`${articles.views} DESC`
+      : sort === 'createdAt'
+        ? sql`${articles.createdAt} DESC`
+        : sql`${articles.updatedAt} DESC`
+
+  let listQuery = db.select().from(articles).orderBy(orderExpr)
+  if (whereCondition) {
+    listQuery = listQuery.where(whereCondition)
+  }
 
   if (page && pageSize) {
     const startIndex = (page - 1) * pageSize
-    list = list.slice(startIndex, startIndex + pageSize)
+    listQuery.limit(pageSize).offset(startIndex)
   }
+
+  const listRows = await listQuery
+  const list = listRows.map(toBlogArticle)
 
   return {
     stats: {
-      total: allArticles.length,
-      published: allArticles.filter((article) => article.status === '已发布').length,
-      draft: allArticles.filter((article) => article.status === '草稿').length,
-      review: allArticles.filter((article) => article.status === '待审核').length,
+      total: allTotal,
+      published,
+      draft,
+      review,
     },
-    categories: ['全部', ...new Set(allArticles.map((article) => article.category))],
+    categories: ['全部', ...categories.map((row) => row.category)],
     list,
     pagination: {
-      total,
+      total: filteredTotal,
       page,
       pageSize,
-      totalPages: Math.ceil(total / (pageSize || 1)),
-    }
+      totalPages: Math.ceil(filteredTotal / (pageSize || 1)),
+    },
   }
 }
 
