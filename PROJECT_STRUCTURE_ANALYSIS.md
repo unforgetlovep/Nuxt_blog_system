@@ -4,11 +4,12 @@
 
 ### 根目录
 
-- `.env.example`：环境变量模板，包含 OSS 配置示例（当前内容含真实密钥样式，存在泄露风险）。
+- `.env.example`：环境变量模板，当前**仅列出 OSS 相关变量**；`DATABASE_URL`（`lib/database/client.ts`、`drizzle.config.ts`）与 `JWT_SECRET`（`lib/database/users.ts`）未在模板中说明，新环境需自行配置。文件中仍含**疑似真实 AccessKey 形态的示例值**，存在泄露与误用风险，提交前应替换为占位符并轮换已暴露密钥。
 - `.gitignore`：Git 忽略规则，忽略 Nuxt 构建产物、日志、`.env` 等。
-- `README.md`：项目启动说明、早期任务清单、基础技术栈说明（部分内容已落后于当前实现）。
-- `drizzle.config.ts`：Drizzle Kit 配置，声明 schema 路径、迁移输出目录、数据库连接。
-- `nuxt.config.ts`：Nuxt 主配置，启用 Pinia/Tailwind 模块、runtimeConfig（OSS）、Nitro 外部依赖。
+- `README.md`：项目启动说明、早期任务清单、基础技术栈说明；**任务清单勾选状态仍多为未完成，与下文「实现进度」不一致**，宜后续与代码对齐更新。
+- `drizzle.config.ts`：Drizzle Kit 配置，`schema` 指向 `lib/database/schema.ts`，`out` 为 `./drizzle`，`dialect: 'mysql'`，`dbCredentials.url` 读取 `DATABASE_URL`（含本地默认连接串）。
+- `drizzle/`：Drizzle Kit 生成的迁移 SQL 输出目录（由 `drizzle.config.ts` 的 `out` 指定）；若尚未执行 `drizzle-kit generate` 等命令，仓库中可能不存在该文件夹。
+- `nuxt.config.ts`：Nuxt 主配置（`compatibilityDate`、`devtools`）；模块为 Pinia、`pinia-plugin-persistedstate/nuxt`、`@nuxtjs/tailwindcss`；`runtimeConfig` 注入 OSS；`imports.dirs: ['stores']` 将**根目录** `stores/` 纳入自动导入（Nuxt 4 默认 `srcDir` 为 `app/` 时需如此配置）；`nitro.externals` 将 `ali-oss` 标为 external。
 - `package.json`：项目依赖与脚本定义（Nuxt、Pinia、Drizzle、Tiptap、ali-oss 等）。
 - `package-lock.json`：NPM 锁文件，锁定依赖版本，保证安装一致性。
 - `tsconfig.json`：TypeScript 配置入口，引用 Nuxt 生成的多端 tsconfig。
@@ -66,7 +67,7 @@
 ### `stores/`
 
 - `stores/user.ts`：用户状态管理（登录态、用户信息、拉取当前用户、退出登录、cookie 持久化）。
-- `stores/articles.ts`：预留文章 Store（当前几乎为空，待未来扩展 UI 级状态）。
+- `stores/articles.ts`：文章 Pinia Store（逻辑已迁到服务端 API + 数据库，Store 体为空；注释说明保留用于后续 UI 级状态，如列表偏好等）。
 
 ### `server/`
 
@@ -124,26 +125,29 @@
 
 ## 2. 当前技术栈
 
-- **前端框架**：Nuxt 4 + Vue 3 + Vue Router
-- **状态管理**：Pinia + `pinia-plugin-persistedstate`
+- **前端框架**：Nuxt 4（`package.json` 中 `nuxt` ^4.x）+ Vue 3 + Vue Router
+- **源码目录**：Nuxt 4 默认以 `app/` 为页面与布局根；根目录保留 `plugins/`、`stores/`、`server/`、`lib/` 等
+- **状态管理**：Pinia + `pinia-plugin-persistedstate`（Nuxt 模块方式注册）
 - **样式方案**：Tailwind CSS（`@nuxtjs/tailwindcss`）
 - **富文本编辑**：Tiptap（StarterKit、Link、Image、Placeholder、TextAlign、Underline）
 - **轮播组件**：Swiper
 - **服务端运行层**：Nuxt Nitro / h3 API
-- **数据库**：MySQL（`mysql2`）
-- **ORM/迁移**：Drizzle ORM + Drizzle Kit
+- **数据库**：MySQL（`mysql2` 连接池 + `DATABASE_URL`）
+- **ORM/迁移**：Drizzle ORM + Drizzle Kit；运行时表结构主要由 `lib/database/client.ts` 中 `CREATE TABLE IF NOT EXISTS` 初始化（与是否已生成 `drizzle/` 迁移目录可并存）
 - **认证方案**：JWT + HttpOnly Cookie
 - **密码加密**：bcryptjs
-- **对象存储**：阿里云 OSS（`ali-oss`）
+- **对象存储**：阿里云 OSS（`ali-oss`，配置来自 `runtimeConfig` / 环境变量）
 - **语言**：TypeScript
 - **包管理**：npm
+- **API 路径**：文章资源使用 `/api/posts`、`/api/posts/[slug]`（与 `README.md` 早期清单中的 `/api/articles` 命名不一致，以代码为准）
 
 ## 3. 可能需要 TODO 的功能（按优先级）
 
 ### P0（高优先）
 
 - [ ] **敏感信息治理**：清理 `.env.example` 中疑似真实 OSS Key，替换为占位符；轮换已暴露密钥。
-- [ ] **认证安全加固**：`JWT_SECRET` 改为强随机环境变量，禁用默认硬编码兜底值。
+- [ ] **环境变量模板补全**：在 `.env.example` 中增加 `DATABASE_URL`、`JWT_SECRET` 等占位说明（与 `client.ts`、`users.ts`、`drizzle.config.ts` 对齐），避免新成员漏配。
+- [ ] **认证安全加固**：`JWT_SECRET` 改为强随机环境变量，禁用默认硬编码兜底值（当前 `lib/database/users.ts` 仍有字符串兜底）。
 - [ ] **初始化/重置接口保护**：给 `auth/init`、`auth/reset-admin` 加一次性令牌或仅开发环境开放。
 - [ ] **管理员注册后门治理**：移除 `register` 中硬编码 `secretCode=admin123` 提权逻辑。
 
@@ -164,5 +168,11 @@
 
 ## 4. 当前项目状态结论
 
-- 已具备“前台阅读 + 登录注册 + 写作编辑 + 后台管理 + MySQL 持久化 + OSS 上传”的完整闭环雏形。
-- 目前最大风险在于**安全配置（密钥/JWT/提权接口）**与**数据查询性能（内存过滤）**，建议先做 P0 与 P1 再扩展功能。
+- 已具备「前台阅读 + 登录注册 + 用户写作 + 后台管理 + MySQL 持久化 + OSS 图片上传」的**可运行闭环**；`lib/database/client.ts` 仍在首次初始化时注入 mock 文章数据（便于空库演示）。
+- **README.md** 中的勾选清单尚未反映上述完成度，容易让人误判为“未开始做”；建议将清单更新为与当前仓库一致，或注明以本文件与 `server/api`、`app/pages` 为准。
+- 目前最大风险仍在于**安全配置（`.env.example` 形态、JWT 兜底、init/reset-admin、注册提权）**与**列表查询实现（`getArticles` 全表读取后在内存过滤/排序/分页，且 stats 再次全表查询）**，建议优先处理 P0 与 P1 再扩展功能。
+
+## 5. 仓库文件规模（便于对照）
+
+- 核心业务与配置以 TypeScript / Vue 为主，根目录下除 `node_modules`、构建产物外，源文件约 **40+** 个（含 `app/`、`server/`、`lib/`、`shared/`、`plugins/`、`stores/` 等）；`public/` 当前仅有 `robots.txt`。
+- 若本地存在 `.nuxt/`、`node_modules/`、`.output/` 等，均属生成或依赖目录，不必写入版本控制（见 `.gitignore`）。
