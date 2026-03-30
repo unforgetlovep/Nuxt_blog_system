@@ -6,7 +6,13 @@ import jwt from 'jsonwebtoken'
 import { db, initializeDatabase } from './client'
 import { users } from './schema'
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'blog-system-secret-key-super-secure'
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw createError({ statusCode: 500, statusMessage: 'JWT_SECRET 未配置' })
+  }
+  return secret
+}
 
 type UserRow = InferSelectModel<typeof users>
 type NewUserRow = InferInsertModel<typeof users>
@@ -82,7 +88,7 @@ export const loginUser = async (data: Pick<NewUserRow, 'username' | 'password'>)
 
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   )
 
@@ -94,7 +100,7 @@ export const loginUser = async (data: Pick<NewUserRow, 'username' | 'password'>)
 
 export const verifyToken = (token: string) => {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string }
+    return jwt.verify(token, getJwtSecret()) as { id: number; username: string; role: string }
   } catch (e) {
     return null
   }

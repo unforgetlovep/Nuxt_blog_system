@@ -1,11 +1,13 @@
-import { verifyToken, toUserDTO, JWT_SECRET } from '~~/lib/database/users'
+import { verifyToken, toUserDTO } from '~~/lib/database/users'
 import { db, initializeDatabase } from '~~/lib/database/client'
 import { users } from '~~/lib/database/schema'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const token = getCookie(event, 'auth_token')
-  console.log('[me.ts] token from cookie:', token ? 'EXISTS' : 'MISSING')
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[me.ts] token from cookie:', token ? 'EXISTS' : 'MISSING')
+  }
 
   if (!token) {
     throw createError({ statusCode: 401, statusMessage: '未登录' })

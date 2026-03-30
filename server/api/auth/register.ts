@@ -12,8 +12,10 @@ export default defineEventHandler(async (event) => {
   }
 
   // To secure the system, only allow normal user registration by default
-  // Can add a secret code check here to allow admin registration
-  const role = body.secretCode === 'admin123' ? 'admin' : 'user'
+  // Optional: allow admin registration only when ADMIN_SECRET_CODE is configured
+  const adminSecretCode = process.env.ADMIN_SECRET_CODE
+  const role =
+    adminSecretCode && body.secretCode && String(body.secretCode) === adminSecretCode ? 'admin' : 'user'
 
   const user = await registerUser({
     username: body.username,

@@ -15,6 +15,12 @@ interface ArticleQuery {
   sort?: 'updatedAt' | 'createdAt' | 'views'
 }
 
+interface AuthorArticleQuery {
+  status?: string
+  search?: string
+  sort?: 'updatedAt' | 'createdAt' | 'views'
+}
+
 const parseTags = (value: string) => {
   try {
     return JSON.parse(value) as string[]
@@ -155,6 +161,54 @@ export const getArticles = async (query: ArticleQuery & { page?: number; pageSiz
       totalPages: Math.ceil(total / (pageSize || 1)),
     }
   }
+}
+
+export const getArticlesByAuthorId = async (authorId: number, query: AuthorArticleQuery = {}) => {
+  await initializeDatabase()
+
+  const {
+    status = '全部',
+    search = '',
+    sort = 'updatedAt',
+  } = query
+
+  // First down-push by authorId in SQL to avoid loading all rows.
+  let list = (await db
+    .select()
+    .from(articles)
+    .where(eq(articles.authorId, authorId))).map(toBlogArticle)
+
+  if (status !== '全部') {
+    list = list.filter((article) => article.status === status)
+  }
+
+  if (search.trim()) {
+    const normalizedSearch = search.trim().toLowerCase()
+
+    list = list.filter((article) => {
+      const content = [
+        article.title,
+        article.summary,
+        article.author,
+        article.category,
+        article.tags.join(' '),
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      return content.includes(normalizedSearch)
+    })
+  }
+
+  if (sort === 'views') {
+    list.sort((left, right) => right.views - left.views)
+  } else if (sort === 'createdAt') {
+    list.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  } else {
+    list.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  }
+
+  return { list }
 }
 
 export const getArticleBySlug = async (slug: string) => {

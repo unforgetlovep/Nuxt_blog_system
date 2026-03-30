@@ -4,6 +4,23 @@ import { registerUser } from '~~/lib/database/users'
 import { sql } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
+  // Production-only protection: require `ADMIN_SETUP_TOKEN` via `x-admin-setup-token`
+  if (process.env.NODE_ENV === 'production') {
+    const expected = process.env.ADMIN_SETUP_TOKEN
+    if (!expected) {
+      throw createError({ statusCode: 500, statusMessage: 'ADMIN_SETUP_TOKEN 未配置' })
+    }
+
+    const providedHeader = event.node.req.headers['x-admin-setup-token']
+    const query = getQuery(event) as Record<string, unknown>
+    const providedQuery = query.token ? String(query.token) : ''
+    const provided = (providedHeader ? String(providedHeader) : '') || providedQuery
+
+    if (!provided || provided !== expected) {
+      throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
+    }
+  }
+
   await initializeDatabase()
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users)
