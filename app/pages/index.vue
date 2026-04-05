@@ -26,6 +26,10 @@ interface ArticlesResponse {
 
 const activeCategory = ref('全部')
 
+const searchKeyword = ref('')
+const debouncedSearchKeyword = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+
 // Infinite Scroll
 const pageSize = 10
 const page = ref(1)
@@ -45,6 +49,7 @@ const fetchArticles = async (isLoadMore = false) => {
         status: '已发布',
         sort: 'updatedAt',
         category: activeCategory.value === '全部' ? undefined : activeCategory.value,
+        search: debouncedSearchKeyword.value || undefined,
         page: page.value,
         pageSize,
       }
@@ -73,6 +78,49 @@ watch(activeCategory, () => {
   hasMore.value = true
   fetchArticles()
 })
+
+watch(searchKeyword, (next) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchKeyword.value = next
+    page.value = 1
+    hasMore.value = true
+    fetchArticles()
+  }, 350)
+})
+
+const clearSearch = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = undefined
+  }
+
+  searchKeyword.value = ''
+  debouncedSearchKeyword.value = ''
+  page.value = 1
+  hasMore.value = true
+  fetchArticles()
+}
+
+const highlightedTitleParts = (text: string) => {
+  const keyword = debouncedSearchKeyword.value.trim()
+  if (!keyword) {
+    return [{ text, isMatch: false }]
+  }
+
+  const keywordLower = keyword.toLowerCase()
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(${escaped})`, 'ig')
+  const parts = text.split(re)
+
+  return parts.map((part) => ({
+    text: part,
+    isMatch: part !== '' && part.toLowerCase() === keywordLower,
+  }))
+}
 
 const handleScroll = () => {
   const bottomOfWindow = document.documentElement.scrollTop + window.innerHeight >= document.documentElement.offsetHeight - 100
@@ -165,6 +213,31 @@ const popularArticles = computed(() => {
 
     <!-- Center Feed -->
     <div class="space-y-6 min-h-[calc(100vh-6rem)] mt-6 min-w-0">
+      <!-- Search -->
+      <div class="w-full">
+        <div class="relative max-w-xl mx-auto">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <button
+            v-if="searchKeyword"
+            type="button"
+            class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-medium text-gray-400 hover:text-gray-600"
+            @click="clearSearch"
+          >
+            清除
+          </button>
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索文章..."
+            class="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-10 py-2 text-sm text-gray-900 focus:border-[#D71A1B] focus:outline-none focus:ring-1 focus:ring-[#D71A1B]"
+          />
+        </div>
+      </div>
+
       <!-- Popular Articles Swiper -->
       <div v-if="popularArticles.length > 0" class="mb-8 rounded-xl overflow-hidden shadow-sm relative group cursor-pointer">
         <Swiper
@@ -183,7 +256,12 @@ const popularArticles = computed(() => {
               <!-- Content -->
               <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white z-10">
                 <span class="inline-block px-2.5 py-1 bg-[#D71A1B] text-xs font-bold rounded mb-3">HOT</span>
-                <h2 class="text-xl sm:text-2xl font-bold leading-snug mb-2 line-clamp-2 group-hover/slide:text-[#D71A1B] transition-colors">{{ article.title }}</h2>
+                <h2 class="text-xl sm:text-2xl font-bold leading-snug mb-2 line-clamp-2 group-hover/slide:text-[#D71A1B] transition-colors">
+                  <template v-for="(part, idx) in highlightedTitleParts(article.title)" :key="idx">
+                    <mark v-if="part.isMatch" class="bg-yellow-200 text-red-700 px-0.5 rounded">{{ part.text }}</mark>
+                    <template v-else>{{ part.text }}</template>
+                  </template>
+                </h2>
                 <div class="flex items-center gap-3 text-sm text-gray-300">
                   <span>{{ article.author }}</span>
                   <span>·</span>
@@ -204,7 +282,10 @@ const popularArticles = computed(() => {
           <div class="flex-1 flex flex-col pt-1 w-full">
             <NuxtLink :to="`/posts/${article.slug}`">
               <h3 class="text-[18px] sm:text-[20px] font-medium leading-snug text-gray-900 group-hover:text-[#D71A1B] transition-colors mb-3 line-clamp-2">
-                {{ article.title }}
+                <template v-for="(part, idx) in highlightedTitleParts(article.title)" :key="idx">
+                  <mark v-if="part.isMatch" class="bg-yellow-200 text-red-700 px-0.5 rounded">{{ part.text }}</mark>
+                  <template v-else>{{ part.text }}</template>
+                </template>
               </h3>
             </NuxtLink>
             

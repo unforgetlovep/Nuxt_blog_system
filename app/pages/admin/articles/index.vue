@@ -7,13 +7,16 @@ definePageMeta({
 
 const activeCategory = ref('全部')
 const searchKeyword = ref('')
+const debouncedSearchKeyword = ref('')
 const sortValue = ref('updatedAt')
 const page = ref(1)
 const pageSize = ref(10)
 
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+
 const query = computed(() => ({
   category: activeCategory.value === '全部' ? undefined : activeCategory.value,
-  search: searchKeyword.value,
+  search: debouncedSearchKeyword.value,
   sort: sortValue.value,
   page: page.value,
   pageSize: pageSize.value,
@@ -40,9 +43,48 @@ const { data, pending, refresh } = await useFetch<ArticlesResponse>('/api/posts'
   query,
 })
 
-watch([activeCategory, searchKeyword, sortValue], () => {
+watch([activeCategory, sortValue], () => {
   page.value = 1
 })
+
+watch(searchKeyword, (next) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchKeyword.value = next
+    page.value = 1
+  }, 350)
+})
+
+const clearSearch = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = undefined
+  }
+
+  searchKeyword.value = ''
+  debouncedSearchKeyword.value = ''
+  page.value = 1
+}
+
+const highlightedTitleParts = (text: string) => {
+  const keyword = debouncedSearchKeyword.value.trim()
+  if (!keyword) {
+    return [{ text, isMatch: false }]
+  }
+
+  const keywordLower = keyword.toLowerCase()
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(${escaped})`, 'ig')
+  const parts = text.split(re)
+
+  return parts.map((part) => ({
+    text: part,
+    isMatch: part !== '' && part.toLowerCase() === keywordLower,
+  }))
+}
 
 const filterTabs = computed(() => data.value?.categories ?? ['全部'])
 const articleList = computed(() => data.value?.list ?? [])
@@ -342,11 +384,19 @@ const getStatusClass = (status: string) => {
                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                </svg>
             </div>
+                <button
+                  v-if="searchKeyword"
+                  type="button"
+                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-medium text-gray-400 hover:text-gray-600"
+                  @click="clearSearch"
+                >
+                  清除
+                </button>
             <input
               v-model="searchKeyword"
               type="text"
               placeholder="搜索文章..."
-              class="w-full sm:w-64 rounded border border-gray-300 bg-white pl-9 pr-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  class="w-full sm:w-64 rounded border border-gray-300 bg-white pl-9 pr-10 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
           </div>
           <select
@@ -397,7 +447,15 @@ const getStatusClass = (status: string) => {
               </td>
               <td class="px-6 py-4">
                 <div class="flex flex-col max-w-[300px] lg:max-w-[400px]">
-                  <span class="font-medium text-gray-900 truncate" :title="article.title">{{ article.title }}</span>
+                  <span class="font-medium text-gray-900 truncate" :title="article.title">
+                    <template v-for="(part, idx) in highlightedTitleParts(article.title)" :key="idx">
+                      <mark
+                        v-if="part.isMatch"
+                        class="bg-yellow-200 text-red-700 px-0.5 rounded"
+                      >{{ part.text }}</mark>
+                      <template v-else>{{ part.text }}</template>
+                    </template>
+                  </span>
                   <span class="text-xs text-gray-500 mt-1 truncate">{{ article.summary }}</span>
                 </div>
               </td>
