@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useUserStore } from '~~/stores/user'
 import type { BlogArticle } from '~~/shared/types/article'
+import type { BlogComment } from '~~/shared/types/comment'
 
 const route = useRoute()
 const slug = computed(() => decodeURIComponent(String(route.params.slug ?? '')))
@@ -10,6 +13,64 @@ const { data } = await useFetch<{ article: BlogArticle }>(
   },
 )
 const article = computed(() => data.value?.article ?? null)
+
+const userStore = useUserStore()
+
+const { data: commentsData, pending: commentsPending, refresh: refreshComments } = await useFetch<{
+  list: BlogComment[]
+}>(
+  () => `/api/posts/${encodeURIComponent(slug.value)}/comments`,
+  { watch: [slug] },
+)
+
+const comments = computed(() => commentsData.value?.list ?? [])
+
+const newCommentContent = ref('')
+const submitLoading = ref(false)
+const submitError = ref('')
+
+const formatDateTime = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
+const handleSubmitComment = async () => {
+  submitError.value = ''
+
+  const content = newCommentContent.value.trim()
+  if (!content) {
+    submitError.value = '评论内容不能为空'
+    return
+  }
+
+  if (!userStore.isAuthenticated) {
+    submitError.value = '请先登录后再评论'
+    return
+  }
+
+  submitLoading.value = true
+  try {
+    await $fetch(`/api/posts/${encodeURIComponent(slug.value)}/comments`, {
+      method: 'POST',
+      body: { content },
+    })
+    newCommentContent.value = ''
+    await refreshComments()
+  } catch (e: any) {
+    submitError.value = e?.data?.statusMessage || e?.data?.message || e?.message || '发表评论失败，请稍后再试'
+  } finally {
+    submitLoading.value = false
+  }
+}
 
 useSeoMeta({
   title: () => article.value?.title ? `${article.value.title} - Blog System` : '文章详情',
@@ -127,6 +188,80 @@ useSeoMeta({
           </div>
         </div>
       </aside>
+    </section>
+
+    <!-- Comments -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-2xl font-bold text-gray-900">评论</h2>
+        <span class="text-sm text-gray-500">{{ comments.length }} 条</span>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <div v-if="!userStore.isAuthenticated" class="text-sm text-gray-500 mb-4">
+          请先登录后再发表评论
+        </div>
+
+        <div class="space-y-3">
+          <textarea
+            v-model="newCommentContent"
+            rows="4"
+            class="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-[#D71A1B] focus:outline-none focus:ring-1 focus:ring-[#D71A1B] disabled:opacity-50"
+            placeholder="说点什么..."
+            :disabled="!userStore.isAuthenticated || submitLoading"
+          />
+
+          <div class="flex items-center justify-between gap-4">
+            <p v-if="submitError" class="text-sm text-red-600">{{ submitError }}</p>
+            <p v-else class="text-sm text-gray-400">
+              最多 1000 字
+            </p>
+
+            <button
+              type="button"
+              class="rounded-full bg-[#D71A1B] px-5 py-2 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!userStore.isAuthenticated || submitLoading || !newCommentContent.trim()"
+              @click="handleSubmitComment"
+            >
+              {{ submitLoading ? '发布中...' : '发表评论' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div v-if="commentsPending" class="py-6 text-center text-sm text-gray-500">
+          加载评论中...
+        </div>
+
+        <div v-else-if="comments.length === 0" class="py-8 text-center">
+          <p class="text-sm text-gray-500">暂无评论，成为第一个吧。</p>
+        </div>
+
+        <ul v-else class="space-y-4">
+          <li
+            v-for="comment in comments"
+            :key="comment.id"
+            class="bg-white rounded-xl border border-gray-100 p-5"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
+                  {{ (comment.author || '佚名').charAt(0).toUpperCase() }}
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-gray-900">{{ comment.author }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ formatDateTime(comment.createdAt) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <p class="mt-3 whitespace-pre-wrap text-sm text-gray-700">
+              {{ comment.content }}
+            </p>
+          </li>
+        </ul>
+      </div>
     </section>
   </div>
 

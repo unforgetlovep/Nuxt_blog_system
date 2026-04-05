@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
 import { mockArticles } from '~~/shared/data/articles'
-import { articles, users } from './schema'
+import { articles, comments, users } from './schema'
 
 const databaseUrl = process.env.DATABASE_URL || 'mysql://root:password@127.0.0.1:3306/blog_system'
 
@@ -11,6 +11,7 @@ const poolConnection = mysql.createPool(databaseUrl)
 export const db = drizzle(poolConnection, {
   schema: {
     articles,
+    comments,
     users,
   },
   mode: 'default'
@@ -52,6 +53,18 @@ export const initializeDatabase = async () => {
       cover VARCHAR(255) NOT NULL,
       featured BOOLEAN NOT NULL DEFAULT 0,
       content LONGTEXT NOT NULL,
+      FOREIGN KEY (author_id) REFERENCES users(id)
+    )
+  `)
+
+  await poolConnection.query(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      article_slug VARCHAR(255) NOT NULL,
+      author_id INT,
+      author VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      created_at VARCHAR(255) NOT NULL,
       FOREIGN KEY (author_id) REFERENCES users(id)
     )
   `)

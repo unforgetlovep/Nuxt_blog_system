@@ -27,3 +27,12 @@ export const articles = mysqlTable('articles', {
   featured: boolean('featured').notNull().default(false),
   content: text('content').notNull(), // 可以使用 text 保存较长内容
 })
+
+export const comments = mysqlTable('comments', {
+  id: int('id').primaryKey().autoincrement(),
+  articleSlug: varchar('article_slug', { length: 255 }).notNull(),
+  authorId: int('author_id').references(() => users.id),
+  author: varchar('author', { length: 255 }).notNull(),
+  content: text('content').notNull(),
+  createdAt: varchar('created_at', { length: 255 }).notNull(),
+})
