@@ -265,6 +265,17 @@ export const getArticleBySlug = async (slug: string) => {
   return toBlogArticle(article)
 }
 
+export const incrementArticleViews = async (slug: string, increment = 1) => {
+  await initializeDatabase()
+
+  await db
+    .update(articles)
+    .set({
+      views: sql<number>`${articles.views} + ${increment}`,
+    })
+    .where(eq(articles.slug, slug))
+}
+
 export const createArticle = async (article: Omit<BlogArticle, 'id'>) => {
   await initializeDatabase()
 

@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import type { BlogArticle } from '~~/shared/types/article'
-import { deleteArticleBySlug, getArticleBySlug, updateArticle } from '~~/lib/database/articles'
+import { deleteArticleBySlug, getArticleBySlug, incrementArticleViews, updateArticle } from '~~/lib/database/articles'
 
 export default defineEventHandler(async (event) => {
   const rawSlug = getRouterParam(event, 'slug')
@@ -74,7 +74,46 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Update views with simple cookie dedup (best-effort).
+  // This makes home "HOT" and sort-by-views meaningful without complex infra.
+  if (article.status === '已发布') {
+    const viewedCookie = getCookie(event, 'viewed_post_slugs')
+    let viewedSlugs: string[] = []
+
+    if (viewedCookie) {
+      try {
+        const parsed = JSON.parse(String(viewedCookie))
+        if (Array.isArray(parsed)) {
+          viewedSlugs = parsed.map(String).slice(0, 50)
+        }
+      } catch {
+        viewedSlugs = String(viewedCookie)
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .slice(0, 50)
+      }
+    }
+
+    const hasViewed = viewedSlugs.includes(slug)
+    if (!hasViewed) {
+      viewedSlugs = [...viewedSlugs, slug].slice(-50)
+      await incrementArticleViews(slug, 1)
+    }
+
+    setCookie(event, 'viewed_post_slugs', JSON.stringify(viewedSlugs), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60,
+      path: '/',
+    })
+  }
+
+  // Return updated views if we incremented.
+  const latest = await getArticleBySlug(slug)
+
   return {
-    article,
+    article: latest ?? article,
   }
 })
